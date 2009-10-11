@@ -27,7 +27,18 @@ class GemWindowController < NSWindowController
   end
 	
 	def get_all_gems
-		@gems = Gem.cache.map{|gem_data| GemInfo.new(gem_data)}
+    # Set is currentl buggy so we can't use it
+		raw = Gem.cache.map{|gem_data| gem_data}
+    @gems = []
+    raw.each do |g_metadata| 
+      name = g_metadata.first.gsub(/-\d(\.\d)*/, '')
+      if existing_gem = @gems.detect{|gem| gem.name == name}
+        existing_gem.add_version(g_metadata)
+      else
+        @gems << GemInfo.new(g_metadata)
+      end
+    end
+
 		@gemTableView.dataSource = self
 	end
 	
@@ -40,7 +51,7 @@ class GemWindowController < NSWindowController
 		NSApp.beginSheet(@info_sheet, 
 			modalForWindow:@main_window, 
 			modalDelegate:self, 
-			didEndSelector:"gem_info",
+			didEndSelector:nil,
 			contextInfo:nil)			
 	end
 
@@ -48,7 +59,7 @@ class GemWindowController < NSWindowController
 		NSApp.beginSheet(@add_sheet, 
 			modalForWindow:@main_window, 
 			modalDelegate:self, 
-			didEndSelector:"added_gem",
+			didEndSelector:nil,
 			contextInfo:nil)
 	end
 	
@@ -58,41 +69,46 @@ class GemWindowController < NSWindowController
 	end
 
 	def close_add(sender)
+    add_gem!
 		get_all_gems
 		@add_sheet.orderOut(nil)
     NSApp.endSheet(@add_sheet)
 	end
 	
-	def gem_info
-   # temp hack
-	end
-	
 	def update(sender)
 		select_name = @gems[@gemTableView.selectedRow].name
-		output = `gem update #{select_name}`
+		output = `macgem update #{select_name}`
 		puts output
 		
 		get_all_gems
 	end
 	
-	def added_gem
+	def add_gem!
 		gem_name = @add_name.stringValue
 		version = "--version \"= #{@add_version.stringValue}\""
 		source = "--source #{@add_source.stringValue}"
-		@add_docs.stringValue == "1" ? docs = "" : docs = "--no-rdoc --no-ri"
-
-		action_str = "#{gem_name} #{docs}" 
-
-		if version != "--version "
-			action_str += " #{version}"
-		end
+    
+    args = ['install', gem_name]
+    if @add_docs.stringValue == "1"
+      args << "--no-rdoc"
+      args << "--no-ri"
+    end 
+    args << "--version \"= #{@add_version.stringValue}\"" unless @add_version.stringValue.empty?
+		args << "--source #{@add_source.stringValue}" unless @add_source.stringValue.empty?
 		
-		if source != "--source "
-			action_str += " #{source}"
-		end
-		
-		output = `macgem install #{action_str}`
-		puts output
+    select_name = @gems[@gemTableView.selectedRow].name
+    
+    # NSTask.launchedTaskWithLaunchPath("/usr/local/bin/macgem", arguments: args)
+    task = NSTask.alloc.init
+    task.launchPath = "/usr/local/bin/macgem"
+    task.arguments = args
+    task.launch
+    task.waitUntilExit
+    puts task.terminationStatus
+    
+    puts "using macgem #{args.join(' ')}"
+# 		output = `macgem install #{action_str}`
+# 		puts output
 	end
 
 	def numberOfRowsInTableView(view)
@@ -101,7 +117,6 @@ class GemWindowController < NSWindowController
 
   def tableView(view, objectValueForTableColumn:column, row:index)
     gem = @gems[index]
-    puts @gems[index]
     case column.identifier
       when 'name'
         gem.name
@@ -111,7 +126,8 @@ class GemWindowController < NSWindowController
   end
 	
 	def remove(sender)
-		select_name = @gems[@gemTableView.selectedRow].name
-		`gem uninstall #{select_name}`
+    puts "remove a gem"
+    select_name = @gems[@gemTableView.selectedRow].name
+    NSTask.launchedTaskWithLaunchPath("/usr/local/bin/macgem", arguments: ["uninstall", select_name])
 	end
 end

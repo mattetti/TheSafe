@@ -7,9 +7,9 @@ class GemInfo
  
  attr_reader :name
  
- def initialize(gems_spec_data)
-   @name = gems_spec_data.first
-   @specs = [gems_spec_data.last]
+ def initialize(gem_specdata)
+   @name = gem_specdata.first.gsub(/-\d(\.\d)*/, '')
+   @specs = [gem_specdata.last]
  end
  
  def versions
@@ -20,6 +20,10 @@ class GemInfo
    @specs.last.version.to_s
  end
  alias_method :version, :latest_version
+ 
+ def add_version(gem_specdata)
+   @specs << gem_specdata.last
+ end
  
 end
 
