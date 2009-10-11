@@ -4,47 +4,37 @@
 # Created by Luke van der Hoeven on 10/10/09.
 # Copyright 2009 HungerAndThirst Productions. All rights reserved.
 
-require 'gem.rb'
-
 class GemWindowController < NSWindowController
 
-		#windows for the application
-	attr_writer :add_sheet, :info_sheet, :main_window		
-		#gem list table
-	attr_writer :gemTableView
-		#inputs for adding a gem
-	attr_writer :add_name, :add_version, :add_source, :add_docs
-		#outputs for
-	attr_writer :info_name, :info_curr_ver, :info_vers, :gem_nums
+  #windows for the application
+	attr_accessor :add_sheet, :info_sheet, :main_window		
+  #gem list table
+	attr_accessor :gemTableView
+  #inputs for adding a gem
+	attr_accessor :add_name, :add_version, :add_source, :add_docs
+  #outputs for
+	attr_accessor:info_name, :info_curr_ver, :info_vers, :gem_nums
 	
 	def awakeFromNib
-		get_all_gems()
-		
+		get_all_gems
 		@gem_nums.stringValue = @gem_nums.stringValue.sub("x", @gems.size.to_s)
 	end
+  
+  # when the window is being closed, close the game
+  # this is called because we setup a delegation from the window to this controller
+  def windowWillClose(sender)
+   exit
+  end
 	
 	def get_all_gems
-		@gems = []
-	
-		list = `gem list --local`
-		lines = list.split("\n")
-		lines.each do |g|
-			v_start = g.index("(") + 1
-			v_end = g.index(")") - 1
-
-			name = g.split(" ").first
-			version = g[v_start..v_end]	
-			
-			@gems << Gem.new(name, version)
-		end
-		
+		@gems = Gem.cache.map{|gem_data| GemInfo.new(gem_data)}
 		@gemTableView.dataSource = self
 	end
 	
 	def info(sender)
 		select = @gems[@gemTableView.selectedRow]
 		@info_name.stringValue = select.name
-		@info_curr_ver.stringValue = select.latest_version
+		@info_curr_ver.stringValue = select.version
 		@info_vers.stringValue = select.versions
 	
 		NSApp.beginSheet(@info_sheet, 
@@ -69,12 +59,12 @@ class GemWindowController < NSWindowController
 
 	def close_add(sender)
 		get_all_gems
-		
 		@add_sheet.orderOut(nil)
     NSApp.endSheet(@add_sheet)
 	end
 	
 	def gem_info
+   # temp hack
 	end
 	
 	def update(sender)
@@ -101,7 +91,7 @@ class GemWindowController < NSWindowController
 			action_str += " #{source}"
 		end
 		
-		output = `gem install #{action_str}`
+		output = `macgem install #{action_str}`
 		puts output
 	end
 
@@ -111,11 +101,12 @@ class GemWindowController < NSWindowController
 
   def tableView(view, objectValueForTableColumn:column, row:index)
     gem = @gems[index]
+    puts @gems[index]
     case column.identifier
       when 'name'
         gem.name
       when 'version'
-        gem.latest_version
+        gem.version
     end
   end
 	
